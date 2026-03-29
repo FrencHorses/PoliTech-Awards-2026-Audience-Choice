@@ -29,29 +29,34 @@ app = Flask(__name__)
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_KEY_HERE")
-CSV_PATH          = os.environ.get("CSV_PATH", "responses.csv")
+ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "YOUR_KEY_HERE")
+CSV_PATH           = os.environ.get("CSV_PATH", "responses.csv")
+CANDIDATES_CSV     = os.environ.get("CANDIDATES_CSV", "candidates_with_descriptions.csv")
 
 NAME_COL      = "Name"
 RESPONSE_COL  = "What qualities matter most to you in a civic technology project?"
 TOP_N         = 5
 
 # ─────────────────────────────────────────────
-# PROJECTS — replace with your shortlist
+# PROJECTS — loaded from CANDIDATES_CSV
 # ─────────────────────────────────────────────
-PROJECTS = [
-    {"id":"p01","name":"Democracy Club","description":"Crowdsourced UK election data infrastructure. Aggregates candidate, polling station, and results data made freely available to thousands of organisations and journalists.","tags":["open-source","elections","data","UK"]},
-    {"id":"p02","name":"Open Referral UK","description":"Open standards for local service directories so councils and charities can share data about community support in a consistent, machine-readable format.","tags":["open-standards","local-gov","social-care"]},
-    {"id":"p03","name":"TheyWorkForYou","description":"Makes UK parliamentary data accessible and searchable so citizens can track their MP's votes, speeches, and positions over time.","tags":["transparency","parliament","accountability"]},
-    {"id":"p04","name":"EveryPolitician","description":"Structured, machine-readable data on politicians worldwide. Enables researchers and developers to build accountability tools across different countries.","tags":["global","data","research"]},
-    {"id":"p05","name":"Alaveteli","description":"Open-source platform for Freedom of Information request websites, deployed in 25+ countries. Lowers the barrier for citizens to access public information.","tags":["FOI","open-source","global"]},
-    {"id":"p06","name":"Polis","description":"Large-scale open-ended feedback and opinion-mapping tool. Used in Taiwan's vTaiwan process and by UK government for public consultation.","tags":["deliberation","AI","participatory"]},
-    {"id":"p07","name":"Decidim","description":"Participatory democracy framework used by city governments across Europe. Supports consultations, citizen proposals, and collaborative budgeting.","tags":["participatory","open-source","local-gov"]},
-    {"id":"p08","name":"FixMyStreet","description":"Community-reporting tool that lets residents report local issues like potholes and broken streetlights directly to councils. Deployed in 20+ countries.","tags":["civic-tech","local","community"]},
-    {"id":"p09","name":"Wikirate","description":"Open platform for corporate accountability data. Enables researchers and civil society to collaboratively track company behaviour on ESG and human rights.","tags":["accountability","corporate","open-data"]},
-    {"id":"p10","name":"Turnout","description":"Mobile-first voter registration and engagement tool targeting first-time and hard-to-reach voters, with community organiser dashboard.","tags":["elections","engagement","mobile","inclusion"]},
-]
+def load_projects(path):
+    df = pd.read_csv(path)
+    projects = []
+    for i, row in df.iterrows():
+        name = str(row.get("project_name", row.iloc[0])).strip()
+        description = str(row.get("description", "")).strip()
+        url = str(row.get("url", "")).strip()
+        if name and name.lower() != "nan":
+            projects.append({
+                "id": f"p{i+1:02d}",
+                "name": name,
+                "description": description,
+                "url": url,
+            })
+    return projects
 
+PROJECTS = load_projects(CANDIDATES_CSV)
 PROJECT_MAP = {p["id"]: p for p in PROJECTS}
 
 SYSTEM_PROMPT = (
@@ -60,7 +65,7 @@ SYSTEM_PROMPT = (
     "You will receive a short paragraph from an audience member describing what they value in civic tech. "
     "Rank ALL of the following projects by how well they match those values, scoring each 0–100.\n\nProjects:\n"
     + "\n".join(
-        f"- ID: {p['id']} | {p['name']}: {p['description']} (tags: {', '.join(p['tags'])})"
+        f"- ID: {p['id']} | {p['name']}: {p['description']}"
         for p in PROJECTS
     )
     + "\n\nRespond ONLY with valid JSON, no markdown:\n"
