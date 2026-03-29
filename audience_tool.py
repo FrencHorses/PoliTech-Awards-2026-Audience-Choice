@@ -32,6 +32,7 @@ app = Flask(__name__)
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "YOUR_KEY_HERE")
 CSV_PATH           = os.environ.get("CSV_PATH", "responses.csv")
 CANDIDATES_CSV     = os.environ.get("CANDIDATES_CSV", "candidates_with_descriptions.csv")
+MODEL              = os.environ.get("MODEL", "claude-haiku-4-5")
 
 NAME_COL      = "Name"
 RESPONSE_COL  = "What qualities matter most to you in a civic technology project?"
@@ -77,7 +78,7 @@ SYSTEM_PROMPT = (
 # ─────────────────────────────────────────────
 def rank_person(client, response_text):
     msg = client.messages.create(
-        model="claude-sonnet-4-6",
+        model=MODEL,
         max_tokens=2000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": response_text}],
