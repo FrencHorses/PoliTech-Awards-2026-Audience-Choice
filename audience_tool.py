@@ -165,11 +165,14 @@ def run():
         name_col = columns[1] if len(columns) > 1 else columns[0]
 
     rows = []
+    skipped = []
     for i, row in enumerate(all_rows):
         name = str(row.get(name_col, f"Respondent {i+1}")).strip()
         text = str(row.get(resp_col, "")).strip() if resp_col else ""
         if text and text.lower() not in ("nan", ""):
             rows.append({"name": name, "text": text})
+        else:
+            skipped.append({"name": name, "raw": repr(str(row.get(resp_col, "")))})
 
     if not rows:
         return jsonify({"error": f"No valid responses found. Detected columns: {list(columns)}"}), 400
@@ -192,7 +195,7 @@ def run():
                 yield f"data: {json.dumps({'type':'person_error','index':i,'name':row['name'],'error':str(e)})}\n\n"
 
         agg = aggregate(all_rankings)
-        yield f"data: {json.dumps({'type':'complete','aggregate':agg,'people':all_rankings,'generated_at':datetime.now().strftime('%d %b %Y, %H:%M')})}\n\n"
+        yield f"data: {json.dumps({'type':'complete','aggregate':agg,'people':all_rankings,'skipped':skipped,'generated_at':datetime.now().strftime('%d %b %Y, %H:%M')})}\n\n"
 
     return Response(stream_with_context(generate()), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -944,6 +947,9 @@ function handleEvent(ev) {
   }
   else if (ev.type === 'complete') {
     addFeedItem('Done', 'done', `${ev.aggregate.length} projects scored`);
+    if (ev.skipped && ev.skipped.length > 0) {
+      ev.skipped.forEach(s => addFeedItem(`Skipped: ${s.name}`, 'err', `Raw value: ${s.raw}`));
+    }
     renderLeaderboard(ev.aggregate);
     renderWinner(ev.aggregate, ev.people.length);
     showPanel2('winner');
