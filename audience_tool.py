@@ -79,7 +79,7 @@ SYSTEM_PROMPT = (
 def rank_person(client, response_text):
     msg = client.messages.create(
         model=MODEL,
-        max_tokens=2000,
+        max_tokens=4000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": response_text}],
     )
@@ -192,7 +192,7 @@ def run():
                 all_rankings.append(entry)
                 yield f"data: {json.dumps({'type':'person_done','index':i,'name':row['name'],'values_summary':ranking.get('values_summary',''),'top':ranking['ranking'][:TOP_N]})}\n\n"
             except Exception as e:
-                yield f"data: {json.dumps({'type':'person_error','index':i,'name':row['name'],'error':str(e)})}\n\n"
+                yield f"data: {json.dumps({'type':'person_error','index':i,'name':row['name'],'error':f'{type(e).__name__}: {e}'})}\n\n"
 
         agg = aggregate(all_rankings)
         yield f"data: {json.dumps({'type':'complete','aggregate':agg,'people':all_rankings,'skipped':skipped,'generated_at':datetime.now().strftime('%d %b %Y, %H:%M')})}\n\n"
@@ -969,6 +969,7 @@ function handleEvent(ev) {
     updateProgressBar();
     const dots = document.querySelectorAll('.feed-dot.spinning');
     if (dots[0]) dots[0].className = 'feed-dot err';
+    addFeedItem(`Failed: ${ev.name}`, 'err', ev.error);
   }
   else if (ev.type === 'complete') {
     addFeedItem('Done', 'done', `${ev.aggregate.length} projects scored`);
