@@ -15,12 +15,12 @@ Edit the PROJECTS list and API key below before the event.
 import json
 import os
 import threading
+import csv
 from dotenv import load_dotenv
 load_dotenv()
 import time
 import io
 import anthropic
-import pandas as pd
 from flask import Flask, request, jsonify, Response, stream_with_context
 from datetime import datetime
 
@@ -41,19 +41,19 @@ TOP_N         = 5
 # PROJECTS — loaded from CANDIDATES_CSV
 # ─────────────────────────────────────────────
 def load_projects(path):
-    df = pd.read_csv(path)
     projects = []
-    for i, row in df.iterrows():
-        name = str(row.get("project_name", row.iloc[0])).strip()
-        description = str(row.get("description", "")).strip()
-        url = str(row.get("url", "")).strip()
-        if name and name.lower() != "nan":
-            projects.append({
-                "id": f"p{i+1:02d}",
-                "name": name,
-                "description": description,
-                "url": url,
-            })
+    with open(path, newline='', encoding='utf-8') as f:
+        for i, row in enumerate(csv.DictReader(f)):
+            name = row.get("project_name", "").strip()
+            description = row.get("description", "").strip()
+            url = row.get("url", "").strip()
+            if name:
+                projects.append({
+                    "id": f"p{i+1:02d}",
+                    "name": name,
+                    "description": description,
+                    "url": url,
+                })
     return projects
 
 PROJECTS = load_projects(CANDIDATES_CSV)
@@ -125,49 +125,53 @@ def run():
     if "csv" in request.files:
         f = request.files["csv"]
         try:
-            df = pd.read_csv(io.StringIO(f.stream.read().decode("utf-8")))
+            content = f.stream.read().decode("utf-8")
+            reader = csv.DictReader(io.StringIO(content))
+            all_rows = list(reader)
+            columns = reader.fieldnames or []
         except Exception as e:
             return jsonify({"error": f"Could not read uploaded CSV: {e}"}), 400
     else:
         try:
-            df = pd.read_csv(CSV_PATH)
+            with open(CSV_PATH, newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                all_rows = list(reader)
+                columns = reader.fieldnames or []
         except Exception as e:
             return jsonify({"error": f"Could not read CSV at {CSV_PATH!r}: {e}"}), 400
 
     # Find response column — try exact match then fuzzy
     resp_col = None
-    for col in df.columns:
+    for col in columns:
         if col.strip().lower() == RESPONSE_COL.strip().lower():
             resp_col = col
             break
     if resp_col is None:
-        # Try partial match
-        for col in df.columns:
-            if "qualit" in col.lower() or "value" in col.lower() or "care" in col.lower() or "matter" in col.lower():
+        for col in columns:
+            if any(kw in col.lower() for kw in ("qualit", "value", "care", "matter")):
                 resp_col = col
                 break
     if resp_col is None:
-        # Fall back to last text column
-        text_cols = [c for c in df.columns if df[c].dtype == object and c != NAME_COL]
+        text_cols = [c for c in columns if c != NAME_COL]
         resp_col = text_cols[-1] if text_cols else None
 
     name_col = None
-    for col in df.columns:
+    for col in columns:
         if col.strip().lower() in ("name", "email", "email address", "your name"):
             name_col = col
             break
     if name_col is None:
-        name_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+        name_col = columns[1] if len(columns) > 1 else columns[0]
 
     rows = []
-    for i, row in df.iterrows():
+    for i, row in enumerate(all_rows):
         name = str(row.get(name_col, f"Respondent {i+1}")).strip()
         text = str(row.get(resp_col, "")).strip() if resp_col else ""
         if text and text.lower() not in ("nan", ""):
             rows.append({"name": name, "text": text})
 
     if not rows:
-        return jsonify({"error": f"No valid responses found. Detected columns: {list(df.columns)}"}), 400
+        return jsonify({"error": f"No valid responses found. Detected columns: {list(columns)}"}), 400
 
     def generate():
         client = anthropic.Anthropic(api_key=api_key)
