@@ -1,0 +1,4 @@
+anthropic
+pandas
+flask
+python-dotenv
