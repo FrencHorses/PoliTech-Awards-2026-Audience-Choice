@@ -669,6 +669,15 @@ body {
 
     <div class="progress-feed" id="progress-feed">
       <div class="sidebar-label">Processing</div>
+      <div id="progress-bar-wrap" style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <span id="progress-label" style="font-size:11px;color:var(--muted)">0 of 0 ranked</span>
+          <span id="progress-pct" style="font-size:10px;color:var(--hint)">0%</span>
+        </div>
+        <div style="height:4px;background:var(--border-md);border-radius:2px;overflow:hidden">
+          <div id="progress-bar" style="height:100%;width:0%;background:var(--tc);border-radius:2px;transition:width 0.4s ease"></div>
+        </div>
+      </div>
       <div id="feed-list"></div>
     </div>
 
@@ -926,8 +935,21 @@ async function runAnalysis() {
   runBtn.textContent = 'Analyse responses →';
 }
 
+let progressTotal = 0;
+let progressDone = 0;
+
+function updateProgressBar() {
+  const pct = progressTotal ? Math.round(progressDone / progressTotal * 100) : 0;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `${progressDone} of ${progressTotal} ranked`;
+  document.getElementById('progress-pct').textContent = pct + '%';
+}
+
 function handleEvent(ev) {
   if (ev.type === 'start') {
+    progressTotal = ev.total;
+    progressDone = 0;
+    updateProgressBar();
     addFeedItem(`Processing ${ev.total} responses`, 'done', null);
     showPanel2('people');
   }
@@ -936,12 +958,15 @@ function handleEvent(ev) {
     addProcessingCard(ev.name);
   }
   else if (ev.type === 'person_done') {
-    // Update feed dot
+    progressDone++;
+    updateProgressBar();
     const dots = document.querySelectorAll('.feed-dot.spinning');
     if (dots[0]) dots[0].className = 'feed-dot done';
     fillPersonCard(ev.name, ev.values_summary, ev.top);
   }
   else if (ev.type === 'person_error') {
+    progressDone++;
+    updateProgressBar();
     const dots = document.querySelectorAll('.feed-dot.spinning');
     if (dots[0]) dots[0].className = 'feed-dot err';
   }
