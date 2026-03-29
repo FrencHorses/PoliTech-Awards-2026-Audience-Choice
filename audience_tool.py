@@ -966,7 +966,7 @@ function showPanel2(name) {
 # LAUNCH
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
+    port = int(os.environ.get("PORT", 8080))
     local = os.environ.get("FLY_APP_NAME") is None
     if local:
         import webbrowser
